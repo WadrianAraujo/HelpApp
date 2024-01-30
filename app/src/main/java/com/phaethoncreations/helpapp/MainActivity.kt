@@ -4,6 +4,7 @@ import android.content.Intent
 import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
 import android.speech.RecognizerIntent
+import android.util.Log
 import android.view.View
 import android.widget.EditText
 import android.widget.ImageButton
@@ -13,6 +14,9 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import okhttp3.*
 import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.MediaType.Companion.toMediaTypeOrNull
+import okhttp3.RequestBody.Companion.toRequestBody
+import org.json.JSONArray
 import org.json.JSONException
 import org.json.JSONObject
 import java.io.Console
@@ -22,17 +26,15 @@ import java.util.Objects
 import kotlin.math.log
 
 class MainActivity : AppCompatActivity() {
-    val API_KEY = "Add Here Your KEy"
     lateinit var recyclerView: RecyclerView
-    lateinit var welcomeText :TextView
-    lateinit var messageEditText:EditText
-    lateinit var sendButton:ImageButton
-    lateinit var messageList:MutableList<Message>
-    lateinit var messageAdapter:MessageAdapter
-    lateinit var micButton:ImageButton
+    lateinit var welcomeText: TextView
+    lateinit var messageEditText: EditText
+    lateinit var sendButton: ImageButton
+    lateinit var messageList: MutableList<Message>
+    lateinit var messageAdapter: MessageAdapter
+    lateinit var micButton: ImageButton
     val REQUEST_CODE_SPEECH_INPUT = 1
     val client = OkHttpClient()
-
 
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -51,10 +53,11 @@ class MainActivity : AppCompatActivity() {
         recyclerView.layoutManager = layoutManger
 
         sendButton.setOnClickListener {
-            val question = messageEditText.text.toString().trim{ it <= ' '}
-            addToChat(question,Message.SENT_BY_ME)
+            val question = messageEditText.text.toString().trim { it <= ' ' }
+            addToChat(question, Message.SENT_BY_ME)
+            fetchData(question)
             messageEditText.setText("")
-            callAPI(question)
+            //callAPI(question)
             welcomeText.visibility = View.GONE
         }
 
@@ -62,14 +65,17 @@ class MainActivity : AppCompatActivity() {
 
             val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
 
-            intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL,RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-            intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE,Locale.getDefault())
-            intent.putExtra(RecognizerIntent.EXTRA_PROMPT,"Speak to Text")
+            intent.putExtra(
+                RecognizerIntent.EXTRA_LANGUAGE_MODEL,
+                RecognizerIntent.LANGUAGE_MODEL_FREE_FORM
+            )
+            intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.getDefault())
+            intent.putExtra(RecognizerIntent.EXTRA_PROMPT, "Speak to Text")
 
             try {
-                startActivityForResult(intent,REQUEST_CODE_SPEECH_INPUT)
-            }catch (e:Exception){
-                Toast.makeText(this," " + e.message, Toast.LENGTH_LONG).show()
+                startActivityForResult(intent, REQUEST_CODE_SPEECH_INPUT)
+            } catch (e: Exception) {
+                Toast.makeText(this, " " + e.message, Toast.LENGTH_LONG).show()
             }
         }
     }
@@ -77,76 +83,78 @@ class MainActivity : AppCompatActivity() {
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
 
-        if (requestCode == REQUEST_CODE_SPEECH_INPUT){
-            if (resultCode == RESULT_OK && data != null){
-                val res : ArrayList<String> = data.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS) as ArrayList<String>
+        if (requestCode == REQUEST_CODE_SPEECH_INPUT) {
+            if (resultCode == RESULT_OK && data != null) {
+                val res: ArrayList<String> =
+                    data.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS) as ArrayList<String>
                 val question = Objects.requireNonNull(res)[0]
-                addToChat(question,Message.SENT_BY_ME)
+                addToChat(question, Message.SENT_BY_ME)
                 messageEditText.setText("")
-                callAPI(question)
                 welcomeText.visibility = View.GONE
             }
         }
     }
 
     private fun addToChat(message: String, sentBy: String) {
-        runOnUiThread{
-            messageList.add(Message(message,sentBy))
+        runOnUiThread {
+            messageList.add(Message(message, sentBy))
             messageAdapter.notifyDataSetChanged()
             recyclerView.smoothScrollToPosition(messageAdapter.itemCount)
         }
-
     }
 
-    fun addResponse(response:String?){
-        messageList.removeAt(messageList.size -1)
-        addToChat(response!!,Message.SENT_BY_BOT)
-
+    fun addResponse(response: String?) {
+        messageList.removeAt(messageList.size - 1)
+        addToChat(response!!, Message.SENT_BY_BOT)
     }
 
-    private fun callAPI(question: String) {
-        //call okhttp
-        messageList.add(Message("Typing...",Message.SENT_BY_BOT))
-        val jsonBody = JSONObject()
-        try {
-            jsonBody.put("model", "text-davinci-003")
-            jsonBody.put("prompt", question)
-            jsonBody.put("max_tokens", 4000)
-            jsonBody.put("temperature", 0)
-        }catch (e:JSONException){
-            e.printStackTrace()
-        }
-        val body :RequestBody = RequestBody.create(JSON,jsonBody.toString())
-        val request:Request = Request.Builder()
-            .url("https://api.openai.com/v1/completions")
-            .header("Authorization", "Bearer $API_KEY")
-            .post(body)
+    companion object {
+        val JSON: MediaType = "application/json; charset=utf-8".toMediaType()
+    }
+
+    private fun fetchData(userInput: String) {
+        val url = "https://espyrtanos-oficina-3-ap2-first-aid-rest-api.hf.space/run/predict"
+
+        messageList.add(Message("Typing...", Message.SENT_BY_BOT))
+
+        val jsonArray = JSONArray()
+        jsonArray.put(userInput)
+
+        val json = JSONObject()
+        json.put("data", jsonArray)
+
+        val requestBody =
+            RequestBody.create("application/json".toMediaTypeOrNull(), json.toString())
+
+        val request = Request.Builder()
+            .url(url)
+            .post(requestBody)
             .build()
-        client.newCall(request).enqueue(object :Callback{
+
+        client.newCall(request).enqueue(object : Callback {
             override fun onFailure(call: Call, e: IOException) {
-                addResponse("Failed to load response due to ${e.message}")
+                e.printStackTrace()
             }
 
             override fun onResponse(call: Call, response: Response) {
-                if (response.isSuccessful){
-                    var jsonObject :JSONObject? = null
-                    try {
-                        jsonObject = JSONObject(response.body!!.string())
-                        val jsonArray = jsonObject.getJSONArray("choices")
-                        val result = jsonArray.getJSONObject(0).getString("text")
-                        addResponse(result.trim{it <= ' '})
-                    }catch (e:JSONException){
-                        e.printStackTrace()
+                if (response.isSuccessful) {
+                    val responseData = response.body?.string()
+                    val jsonResponse = JSONObject(responseData)
+                    val data = jsonResponse.getJSONArray("data")[0]
+                    val duration = jsonResponse.getDouble("duration")
+
+                    addResponse(data.toString())
+
+                    runOnUiThread {
+                        println("Data: $data")
+                        println("Duration: $duration")
                     }
-                }else{
-                    addResponse("Failed to load response due to ${response.body.toString()}")
+                } else {
+                    val errorBody = response.body?.string()
+                    println("Error Code: ${response.code}")
+                    println("Error Message: $errorBody")
                 }
             }
-
         })
-
-    }
-    companion object{
-        val JSON :MediaType = "application/json; charset=utf-8".toMediaType()
     }
 }
