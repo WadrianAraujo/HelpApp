@@ -4,6 +4,7 @@ import android.content.Intent
 import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
 import android.speech.RecognizerIntent
+import android.speech.tts.TextToSpeech
 import android.util.Log
 import android.view.View
 import android.widget.EditText
@@ -26,6 +27,7 @@ import java.util.Objects
 import kotlin.math.log
 
 class MainActivity : AppCompatActivity() {
+    lateinit var textToSpeech: TextToSpeech
     lateinit var recyclerView: RecyclerView
     lateinit var welcomeText: TextView
     lateinit var messageEditText: EditText
@@ -145,6 +147,16 @@ class MainActivity : AppCompatActivity() {
                     val duration = jsonResponse.getDouble("duration")
 
                     addResponse(data.toString())
+
+                    textToSpeech = TextToSpeech(applicationContext,TextToSpeech.OnInitListener {
+                        if (it == TextToSpeech.SUCCESS){
+
+                            textToSpeech.language = Locale.ENGLISH
+                            textToSpeech.setSpeechRate(1.0f)
+                            textToSpeech.speak(data.toString(), TextToSpeech.QUEUE_ADD, null)
+
+                        }
+                    })
 
                     runOnUiThread {
                         println("Data: $data")
