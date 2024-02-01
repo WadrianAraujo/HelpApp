@@ -89,6 +89,7 @@ class MainActivity : AppCompatActivity() {
                     data.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS) as ArrayList<String>
                 val question = Objects.requireNonNull(res)[0]
                 addToChat(question, Message.SENT_BY_ME)
+                fetchData(question)
                 messageEditText.setText("")
                 welcomeText.visibility = View.GONE
             }
